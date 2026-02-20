@@ -1,0 +1,18 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://roo-code.local/schemas/select_active_intent.schema.json",
+	"title": "select_active_intent",
+	"description": "Select an active intent ID and load compact intent context from .orchestration/active_intents.yaml.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"intent_id": {
+			"type": "string",
+			"description": "Intent identifier (for example INT-001).",
+			"minLength": 1,
+			"maxLength": 128,
+			"pattern": "^[A-Za-z0-9._:-]+$"
+		}
+	},
+	"required": ["intent_id"]
+}

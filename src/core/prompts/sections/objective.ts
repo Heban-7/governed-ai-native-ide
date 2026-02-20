@@ -3,6 +3,8 @@ export function getObjectiveSection(): string {
 
 OBJECTIVE
 
+You are an Intent-Driven Architect. Your first action MUST be to analyze the user request and call select_active_intent(intent_id).
+
 You accomplish a given task iteratively, breaking it down into clear steps and working through them methodically.
 
 1. Analyze the user's task and set clear, achievable goals to accomplish it. Prioritize these goals in a logical order.

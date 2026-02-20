@@ -24,6 +24,7 @@ import { editFileTool } from "../tools/EditFileTool"
 import { applyPatchTool } from "../tools/ApplyPatchTool"
 import { searchFilesTool } from "../tools/SearchFilesTool"
 import { executeCommandTool } from "../tools/ExecuteCommandTool"
+import { selectActiveIntentTool } from "../tools/SelectActiveIntentTool"
 import { useMcpToolTool } from "../tools/UseMcpToolTool"
 import { accessMcpResourceTool } from "../tools/accessMcpResourceTool"
 import { askFollowupQuestionTool } from "../tools/AskFollowupQuestionTool"
@@ -40,6 +41,7 @@ import { codebaseSearchTool } from "../tools/CodebaseSearchTool"
 
 import { formatResponse } from "../prompts/responses"
 import { sanitizeToolUseId } from "../../utils/tool-id"
+import { executeTool, registerDefaultHooks } from "../../hooks/hookEngine"
 
 /**
  * Processes and presents assistant message content to the user interface.
@@ -59,6 +61,8 @@ import { sanitizeToolUseId } from "../../utils/tool-id"
  */
 
 export async function presentAssistantMessage(cline: Task) {
+	registerDefaultHooks()
+
 	if (cline.abort) {
 		throw new Error(`[Task#presentAssistantMessage] task ${cline.taskId}.${cline.instanceId} aborted`)
 	}
@@ -269,10 +273,17 @@ export async function presentAssistantMessage(cline: Task) {
 				},
 			}
 
-			await useMcpToolTool.handle(cline, syntheticToolUse, {
+			await executeTool("use_mcp_tool", syntheticToolUse.nativeArgs ?? syntheticToolUse.params, {
+				session: cline,
 				askApproval,
 				handleError,
 				pushToolResult,
+				execute: async () =>
+					useMcpToolTool.handle(cline, syntheticToolUse, {
+						askApproval,
+						handleError,
+						pushToolResult,
+					}),
 			})
 			break
 		}
@@ -675,142 +686,197 @@ export async function presentAssistantMessage(cline: Task) {
 				}
 			}
 
+			const runToolWithHooks = async (toolName: string, payload: unknown, run: () => Promise<void>) => {
+				await executeTool(toolName, payload, {
+					session: cline,
+					askApproval,
+					handleError,
+					pushToolResult,
+					execute: run,
+				})
+			}
+
 			switch (block.name) {
+				case "select_active_intent":
+					await runToolWithHooks("select_active_intent", block.nativeArgs ?? block.params, async () =>
+						selectActiveIntentTool.handle(cline, block as ToolUse<"select_active_intent">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
+					break
 				case "write_to_file":
 					await checkpointSaveAndMark(cline)
-					await writeToFileTool.handle(cline, block as ToolUse<"write_to_file">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("write_to_file", block.nativeArgs ?? block.params, async () =>
+						writeToFileTool.handle(cline, block as ToolUse<"write_to_file">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "update_todo_list":
-					await updateTodoListTool.handle(cline, block as ToolUse<"update_todo_list">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("update_todo_list", block.nativeArgs ?? block.params, async () =>
+						updateTodoListTool.handle(cline, block as ToolUse<"update_todo_list">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "apply_diff":
 					await checkpointSaveAndMark(cline)
-					await applyDiffToolClass.handle(cline, block as ToolUse<"apply_diff">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("apply_diff", block.nativeArgs ?? block.params, async () =>
+						applyDiffToolClass.handle(cline, block as ToolUse<"apply_diff">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "edit":
 				case "search_and_replace":
 					await checkpointSaveAndMark(cline)
-					await editTool.handle(cline, block as ToolUse<"edit">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks(block.name, block.nativeArgs ?? block.params, async () =>
+						editTool.handle(cline, block as ToolUse<"edit">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "search_replace":
 					await checkpointSaveAndMark(cline)
-					await searchReplaceTool.handle(cline, block as ToolUse<"search_replace">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("search_replace", block.nativeArgs ?? block.params, async () =>
+						searchReplaceTool.handle(cline, block as ToolUse<"search_replace">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "edit_file":
 					await checkpointSaveAndMark(cline)
-					await editFileTool.handle(cline, block as ToolUse<"edit_file">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("edit_file", block.nativeArgs ?? block.params, async () =>
+						editFileTool.handle(cline, block as ToolUse<"edit_file">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "apply_patch":
 					await checkpointSaveAndMark(cline)
-					await applyPatchTool.handle(cline, block as ToolUse<"apply_patch">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("apply_patch", block.nativeArgs ?? block.params, async () =>
+						applyPatchTool.handle(cline, block as ToolUse<"apply_patch">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "read_file":
 					// Type assertion is safe here because we're in the "read_file" case
-					await readFileTool.handle(cline, block as ToolUse<"read_file">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("read_file", block.nativeArgs ?? block.params, async () =>
+						readFileTool.handle(cline, block as ToolUse<"read_file">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "list_files":
-					await listFilesTool.handle(cline, block as ToolUse<"list_files">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("list_files", block.nativeArgs ?? block.params, async () =>
+						listFilesTool.handle(cline, block as ToolUse<"list_files">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "codebase_search":
-					await codebaseSearchTool.handle(cline, block as ToolUse<"codebase_search">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("codebase_search", block.nativeArgs ?? block.params, async () =>
+						codebaseSearchTool.handle(cline, block as ToolUse<"codebase_search">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "search_files":
-					await searchFilesTool.handle(cline, block as ToolUse<"search_files">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("search_files", block.nativeArgs ?? block.params, async () =>
+						searchFilesTool.handle(cline, block as ToolUse<"search_files">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "execute_command":
-					await executeCommandTool.handle(cline, block as ToolUse<"execute_command">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("execute_command", block.nativeArgs ?? block.params, async () =>
+						executeCommandTool.handle(cline, block as ToolUse<"execute_command">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "read_command_output":
-					await readCommandOutputTool.handle(cline, block as ToolUse<"read_command_output">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("read_command_output", block.nativeArgs ?? block.params, async () =>
+						readCommandOutputTool.handle(cline, block as ToolUse<"read_command_output">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "use_mcp_tool":
-					await useMcpToolTool.handle(cline, block as ToolUse<"use_mcp_tool">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("use_mcp_tool", block.nativeArgs ?? block.params, async () =>
+						useMcpToolTool.handle(cline, block as ToolUse<"use_mcp_tool">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "access_mcp_resource":
-					await accessMcpResourceTool.handle(cline, block as ToolUse<"access_mcp_resource">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("access_mcp_resource", block.nativeArgs ?? block.params, async () =>
+						accessMcpResourceTool.handle(cline, block as ToolUse<"access_mcp_resource">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "ask_followup_question":
-					await askFollowupQuestionTool.handle(cline, block as ToolUse<"ask_followup_question">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("ask_followup_question", block.nativeArgs ?? block.params, async () =>
+						askFollowupQuestionTool.handle(cline, block as ToolUse<"ask_followup_question">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "switch_mode":
-					await switchModeTool.handle(cline, block as ToolUse<"switch_mode">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("switch_mode", block.nativeArgs ?? block.params, async () =>
+						switchModeTool.handle(cline, block as ToolUse<"switch_mode">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "new_task":
 					await checkpointSaveAndMark(cline)
-					await newTaskTool.handle(cline, block as ToolUse<"new_task">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-						toolCallId: block.id,
-					})
+					await runToolWithHooks("new_task", block.nativeArgs ?? block.params, async () =>
+						newTaskTool.handle(cline, block as ToolUse<"new_task">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+							toolCallId: block.id,
+						}),
+					)
 					break
 				case "attempt_completion": {
 					const completionCallbacks: AttemptCompletionCallbacks = {
@@ -820,34 +886,42 @@ export async function presentAssistantMessage(cline: Task) {
 						askFinishSubTaskApproval,
 						toolDescription,
 					}
-					await attemptCompletionTool.handle(
-						cline,
-						block as ToolUse<"attempt_completion">,
-						completionCallbacks,
+					await runToolWithHooks("attempt_completion", block.nativeArgs ?? block.params, async () =>
+						attemptCompletionTool.handle(
+							cline,
+							block as ToolUse<"attempt_completion">,
+							completionCallbacks,
+						),
 					)
 					break
 				}
 				case "run_slash_command":
-					await runSlashCommandTool.handle(cline, block as ToolUse<"run_slash_command">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("run_slash_command", block.nativeArgs ?? block.params, async () =>
+						runSlashCommandTool.handle(cline, block as ToolUse<"run_slash_command">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "skill":
-					await skillTool.handle(cline, block as ToolUse<"skill">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("skill", block.nativeArgs ?? block.params, async () =>
+						skillTool.handle(cline, block as ToolUse<"skill">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				case "generate_image":
 					await checkpointSaveAndMark(cline)
-					await generateImageTool.handle(cline, block as ToolUse<"generate_image">, {
-						askApproval,
-						handleError,
-						pushToolResult,
-					})
+					await runToolWithHooks("generate_image", block.nativeArgs ?? block.params, async () =>
+						generateImageTool.handle(cline, block as ToolUse<"generate_image">, {
+							askApproval,
+							handleError,
+							pushToolResult,
+						}),
+					)
 					break
 				default: {
 					// Handle unknown/invalid tool names OR custom tools
