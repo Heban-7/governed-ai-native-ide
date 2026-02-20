@@ -1,10 +1,13 @@
 import crypto from "crypto"
 
 import type { AskApproval, HandleError, PushToolResult } from "../shared/tools"
+import { hitlPreHook } from "./preHooks/hitl"
+import { classifyCommand } from "./commandClassifier"
 
 export type HookDecision = {
 	allow: boolean
 	reason?: string
+	alreadyReported?: boolean
 }
 
 export type HookSession = {
@@ -94,6 +97,7 @@ export async function executeTool<TResult = unknown>(
 
 	let allowed = true
 	let blockedReason: string | undefined
+	let alreadyReported = false
 	let result: TResult | undefined
 	let error: Error | undefined
 
@@ -103,6 +107,7 @@ export async function executeTool<TResult = unknown>(
 		if (decision && decision.allow === false) {
 			allowed = false
 			blockedReason = decision.reason ?? `Blocked by pre-hook '${hookName}'.`
+			alreadyReported = decision.alreadyReported ?? false
 			break
 		}
 	}
@@ -113,7 +118,7 @@ export async function executeTool<TResult = unknown>(
 		} catch (err) {
 			error = err instanceof Error ? err : new Error(String(err))
 		}
-	} else if (blockedReason && options.pushToolResult) {
+	} else if (blockedReason && options.pushToolResult && !alreadyReported) {
 		options.pushToolResult(blockedReason)
 	}
 
@@ -142,9 +147,14 @@ export async function executeTool<TResult = unknown>(
  * Demo hook: logs incoming payload with invocation UUID.
  */
 export const logHook: PreHookFn = async (context) => {
+	const classification = classifyCommand(context.toolName, context.payload)
 	log("logHook", {
 		invocationId: context.invocationId,
 		toolName: context.toolName,
+		normalizedToolName: classification.normalizedToolName,
+		risk: classification.risk,
+		mutationClass: classification.mutationClass,
+		affectedFiles: classification.affectedFiles,
 		payload: context.payload,
 	})
 }
@@ -174,9 +184,16 @@ export const blockIfNoIntent: PreHookFn = async (context) => {
 
 	return {
 		allow: false,
-		reason:
-			"Handshake required: you must call select_active_intent(intent_id) first. " +
-			"Mutating tools are blocked until a valid active intent is selected.",
+		reason: JSON.stringify({
+			type: "tool_error",
+			code: "NO_ACTIVE_INTENT",
+			message:
+				"Handshake required: you must call select_active_intent(intent_id) first. Mutating tools are blocked until a valid active intent is selected.",
+			meta: {
+				invocation_id: context.invocationId,
+				tool_name: context.toolName,
+			},
+		}),
 	}
 }
 
@@ -190,5 +207,6 @@ export function registerDefaultHooks(): void {
 
 	registerPreHook("logHook", logHook)
 	registerPreHook("blockIfNoIntent", blockIfNoIntent)
+	registerPreHook("hitlPreHook", hitlPreHook)
 	defaultHooksRegistered = true
 }
