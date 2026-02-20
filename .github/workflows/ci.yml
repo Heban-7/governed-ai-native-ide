@@ -1,0 +1,51 @@
+name: Step8 CI
+
+on:
+    push:
+        branches: ["**"]
+    pull_request:
+
+jobs:
+    test-and-smoke:
+        runs-on: ubuntu-latest
+        timeout-minutes: 30
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v4
+              with:
+                  version: 10.8.1
+
+            - name: Setup Node
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 20.19.2
+                  cache: "pnpm"
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Typecheck extension
+              run: pnpm -C src check-types
+
+            - name: Run critical Step8 tests
+              run: pnpm -C src test -- ../tests/hook_enforcement.spec.ts ../tests/trace_and_hash.spec.ts
+
+            - name: Orchestration smoke setup
+              run: |
+                  mkdir -p .orchestration
+                  cat > .orchestration/active_intents.yaml << 'EOF'
+                  active_intents:
+                    - id: "INT-001"
+                      owned_scope:
+                        - "src/auth/**"
+                  EOF
+                  test -f .orchestration/active_intents.yaml
+
+            - name: Orchestration smoke update
+              run: |
+                  node -e "const fs=require('fs'); fs.appendFileSync('.orchestration/agent_trace.jsonl', JSON.stringify({smoke:true,timestamp:new Date().toISOString()}) + '\n');"
+                  test -s .orchestration/agent_trace.jsonl

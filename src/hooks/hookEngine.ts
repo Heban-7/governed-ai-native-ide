@@ -5,6 +5,7 @@ import { hitlPreHook } from "./preHooks/hitl"
 import { classifyCommand } from "./commandClassifier"
 import { traceAppenderPostHook } from "./postHooks/traceAppender"
 import { scopeAndLockPreHook } from "./preHooks/scopeAndLock"
+import { postprocessPostHook } from "./postHooks/postprocess"
 
 export type HookDecision = {
 	allow: boolean
@@ -215,5 +216,6 @@ export function registerDefaultHooks(): void {
 	registerPreHook("scopeAndLockPreHook", scopeAndLockPreHook)
 	registerPreHook("hitlPreHook", hitlPreHook)
 	registerPostHook("traceAppender", traceAppenderPostHook)
+	registerPostHook("postprocessPostHook", postprocessPostHook)
 	defaultHooksRegistered = true
 }

@@ -1,0 +1,28 @@
+active_intents:
+    - id: "INT-001"
+      name: "JWT Authentication Migration"
+      status: "IN_PROGRESS"
+      owned_scope:
+          - "src/auth/**"
+          - "src/middleware/jwt.ts"
+          - "tests/auth/**"
+      constraints:
+          - "Must preserve backward compatibility with Basic Auth."
+          - "Do not introduce external auth providers."
+      acceptance_criteria:
+          - "Unit tests in tests/auth pass."
+          - "Legacy login flow remains functional."
+
+    - id: "INT-002"
+      name: "Agent Trace Ledger Hardening"
+      status: "IN_PROGRESS"
+      owned_scope:
+          - "src/hooks/**"
+          - "src/utils/computeContentHash.ts"
+          - ".orchestration/**"
+      constraints:
+          - "Append-only JSONL ledger."
+          - "Hashing must be deterministic for canonical examples."
+      acceptance_criteria:
+          - "Each mutating write emits trace record."
+          - "Trace includes revision_id, ranges, related intent id."

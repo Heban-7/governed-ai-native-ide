@@ -1,0 +1,28 @@
+{
+	"type": "postprocess_failure_artifact",
+	"timestamp": "2026-02-20T14:20:00.000Z",
+	"invocation_id": "90f65c3a-d857-4872-b840-177f1f4d5f37",
+	"intent_id": "INT-001",
+	"tool_name": "write_to_file",
+	"mutation_class": "INTENT_EVOLUTION",
+	"modified_files": ["src/auth/middleware.ts"],
+	"checks": [
+		{
+			"command": "pnpm",
+			"args": ["exec", "prettier", "--write", "src/auth/middleware.ts"],
+			"exitCode": 0,
+			"stdout": "src/auth/middleware.ts 44ms",
+			"stderr": "",
+			"durationMs": 88
+		},
+		{
+			"command": "pnpm",
+			"args": ["-C", "src", "check-types"],
+			"exitCode": 2,
+			"stdout": "",
+			"stderr": "TS2339: Property 'x' does not exist on type 'Y'",
+			"durationMs": 3150
+		}
+	],
+	"next_action": "REPLAN_AND_FIX"
+}
