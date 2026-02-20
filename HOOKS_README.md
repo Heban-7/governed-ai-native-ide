@@ -126,6 +126,25 @@ Sample reject JSON:
 }
 ```
 
+## Scope enforcement + optimistic locking (STEP 5)
+
+Implemented in:
+
+- `src/hooks/preHooks/scopeAndLock.ts`
+
+Behavior for mutating tools:
+
+1. Load active intent `owned_scope` globs from `.orchestration/active_intents.yaml`.
+2. Block out-of-scope writes with standardized `SCOPE_VIOLATION` error.
+3. Support `request_scope_expansion` payload with human approval modal (`Approve Expansion`/`Reject`).
+4. If `observed_content_hash` is provided, compare with current file hash before write.
+5. On mismatch, block with standardized `STALE_FILE` error and current diff preview.
+
+References:
+
+- Error JSON examples: `scope_and_lock_examples.md`
+- Collision test steps: `stale_file_collision_test.md`
+
 ## Validation
 
 - Unit tests: `src/hooks/__tests__/hookEngine.spec.ts`

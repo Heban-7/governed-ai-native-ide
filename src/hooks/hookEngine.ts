@@ -3,6 +3,8 @@ import crypto from "crypto"
 import type { AskApproval, HandleError, PushToolResult } from "../shared/tools"
 import { hitlPreHook } from "./preHooks/hitl"
 import { classifyCommand } from "./commandClassifier"
+import { traceAppenderPostHook } from "./postHooks/traceAppender"
+import { scopeAndLockPreHook } from "./preHooks/scopeAndLock"
 
 export type HookDecision = {
 	allow: boolean
@@ -13,6 +15,9 @@ export type HookDecision = {
 export type HookSession = {
 	hasActiveIntentContext?: () => boolean
 	getActiveIntentId?: () => string | undefined
+	cwd?: string
+	taskId?: string
+	instanceId?: string
 }
 
 export type HookContext = {
@@ -207,6 +212,8 @@ export function registerDefaultHooks(): void {
 
 	registerPreHook("logHook", logHook)
 	registerPreHook("blockIfNoIntent", blockIfNoIntent)
+	registerPreHook("scopeAndLockPreHook", scopeAndLockPreHook)
 	registerPreHook("hitlPreHook", hitlPreHook)
+	registerPostHook("traceAppender", traceAppenderPostHook)
 	defaultHooksRegistered = true
 }
