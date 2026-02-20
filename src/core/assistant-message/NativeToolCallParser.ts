@@ -477,6 +477,8 @@ export class NativeToolCallParser {
 					nativeArgs = {
 						path: partialArgs.path,
 						content: partialArgs.content,
+						observed_content_hash: partialArgs.observed_content_hash,
+						request_scope_expansion: partialArgs.request_scope_expansion,
 					}
 				}
 				break
@@ -577,6 +579,8 @@ export class NativeToolCallParser {
 				if (partialArgs.patch !== undefined) {
 					nativeArgs = {
 						patch: partialArgs.patch,
+						observed_content_hash: partialArgs.observed_content_hash,
+						request_scope_expansion: partialArgs.request_scope_expansion,
 					}
 				}
 				break
@@ -591,6 +595,8 @@ export class NativeToolCallParser {
 						file_path: partialArgs.file_path,
 						old_string: partialArgs.old_string,
 						new_string: partialArgs.new_string,
+						observed_content_hash: partialArgs.observed_content_hash,
+						request_scope_expansion: partialArgs.request_scope_expansion,
 					}
 				}
 				break
@@ -607,6 +613,8 @@ export class NativeToolCallParser {
 						old_string: partialArgs.old_string,
 						new_string: partialArgs.new_string,
 						replace_all: this.coerceOptionalBoolean(partialArgs.replace_all),
+						observed_content_hash: partialArgs.observed_content_hash,
+						request_scope_expansion: partialArgs.request_scope_expansion,
 					}
 				}
 				break
@@ -622,6 +630,8 @@ export class NativeToolCallParser {
 						old_string: partialArgs.old_string,
 						new_string: partialArgs.new_string,
 						expected_replacements: partialArgs.expected_replacements,
+						observed_content_hash: partialArgs.observed_content_hash,
+						request_scope_expansion: partialArgs.request_scope_expansion,
 					}
 				}
 				break
@@ -814,6 +824,8 @@ export class NativeToolCallParser {
 						nativeArgs = {
 							path: args.path,
 							diff: args.diff,
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break
@@ -830,6 +842,8 @@ export class NativeToolCallParser {
 							old_string: args.old_string,
 							new_string: args.new_string,
 							replace_all: this.coerceOptionalBoolean(args.replace_all),
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break
@@ -923,6 +937,8 @@ export class NativeToolCallParser {
 						nativeArgs = {
 							path: args.path,
 							content: args.content,
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break
@@ -950,6 +966,8 @@ export class NativeToolCallParser {
 					if (args.patch !== undefined) {
 						nativeArgs = {
 							patch: args.patch,
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break
@@ -964,6 +982,8 @@ export class NativeToolCallParser {
 							file_path: args.file_path,
 							old_string: args.old_string,
 							new_string: args.new_string,
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break
@@ -979,6 +999,8 @@ export class NativeToolCallParser {
 							old_string: args.old_string,
 							new_string: args.new_string,
 							expected_replacements: args.expected_replacements,
+							observed_content_hash: args.observed_content_hash,
+							request_scope_expansion: args.request_scope_expansion,
 						} as NativeArgsFor<TName>
 					}
 					break

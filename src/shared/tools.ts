@@ -68,6 +68,8 @@ export const toolParamNames = [
 	"replace_all", // edit tool parameter for replacing all occurrences
 	"expected_replacements", // edit_file parameter for multiple occurrences
 	"timeout", // execute_command parameter
+	"observed_content_hash", // optimistic locking parameter for mutating tools
+	"request_scope_expansion", // optional structured request for scope expansion flow
 	"artifact_id", // read_command_output parameter
 	"search", // read_command_output parameter for grep-like search
 	"offset", // read_command_output and read_file parameter
@@ -97,12 +99,48 @@ export type NativeToolArgs = {
 	read_command_output: { artifact_id: string; search?: string; offset?: number; limit?: number }
 	attempt_completion: { result: string }
 	execute_command: { command: string; cwd?: string; timeout?: number | null }
-	apply_diff: { path: string; diff: string }
-	edit: { file_path: string; old_string: string; new_string: string; replace_all?: boolean }
-	search_and_replace: { file_path: string; old_string: string; new_string: string; replace_all?: boolean }
-	search_replace: { file_path: string; old_string: string; new_string: string }
-	edit_file: { file_path: string; old_string: string; new_string: string; expected_replacements?: number }
-	apply_patch: { patch: string }
+	apply_diff: {
+		path: string
+		diff: string
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
+	edit: {
+		file_path: string
+		old_string: string
+		new_string: string
+		replace_all?: boolean
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
+	search_and_replace: {
+		file_path: string
+		old_string: string
+		new_string: string
+		replace_all?: boolean
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
+	search_replace: {
+		file_path: string
+		old_string: string
+		new_string: string
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
+	edit_file: {
+		file_path: string
+		old_string: string
+		new_string: string
+		expected_replacements?: number
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
+	apply_patch: {
+		patch: string
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
 	list_files: { path: string; recursive?: boolean }
 	new_task: { mode: string; message: string; todos?: string }
 	ask_followup_question: {
@@ -117,7 +155,12 @@ export type NativeToolArgs = {
 	switch_mode: { mode_slug: string; reason: string }
 	update_todo_list: { todos: string }
 	use_mcp_tool: { server_name: string; tool_name: string; arguments?: Record<string, unknown> }
-	write_to_file: { path: string; content: string }
+	write_to_file: {
+		path: string
+		content: string
+		observed_content_hash?: string
+		request_scope_expansion?: { additional_globs: string[]; reason?: string }
+	}
 	// Add more tools as they are migrated to native protocol
 }
 
