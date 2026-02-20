@@ -50,6 +50,7 @@ Registered via `registerDefaultHooks()`:
 
 - `logHook`: logs incoming payload + UUID.
 - `blockIfNoIntent`: blocks mutating tools when no active intent is selected in session.
+- `hitlPreHook`: classifies destructive operations and opens a native VS Code modal for Approve/Reject.
 
 ## Integration point
 
@@ -73,9 +74,62 @@ registerPreHook("hitlApproval", async ({ askApproval }) => {
 
 This pauses the Promise chain until the user responds.
 
+## Command classification (STEP 3)
+
+Implemented in:
+
+- `src/hooks/commandClassifier.ts`
+
+Policy:
+
+- SAFE: `read_file`, `stat`, `list`, `list_files`
+- DESTRUCTIVE: `write_file`/`write_to_file`, `delete`, `exec_bash`/`execute_command`, edit/apply tools
+
+Mutation class heuristic:
+
+- `AST_REFACTOR` vs `INTENT_EVOLUTION` inferred from simple unified-diff structural patterns when available.
+
+## Native modal flow (STEP 3)
+
+Implemented in:
+
+- `src/hooks/preHooks/hitl.ts`
+
+For destructive tools, pre-hook shows:
+
+- active intent id
+- affected files
+- mutation class
+- diff preview (first 20 lines when available)
+
+Then:
+
+- Approve -> continue
+- Reject -> serialize standardized JSON error into tool result and cancel execution
+
+Sample reject JSON:
+
+```json
+{
+	"type": "tool_error",
+	"code": "HITL_REJECT",
+	"message": "Destructive operation rejected by user via HITL pre-hook.",
+	"meta": {
+		"invocation_id": "uuid-v4",
+		"intent_id": "INT-001",
+		"tool_name": "write_to_file",
+		"normalized_tool_name": "write_to_file",
+		"risk": "DESTRUCTIVE",
+		"mutation_class": "INTENT_EVOLUTION",
+		"affected_files": ["src/auth/middleware.ts"]
+	}
+}
+```
+
 ## Validation
 
 - Unit tests: `src/hooks/__tests__/hookEngine.spec.ts`
+- Unit tests: `src/hooks/__tests__/commandClassifier.spec.ts`
 - Manual flow: `test_select_active_intent.md`
 
 # Hook Engine (STEP 2)
