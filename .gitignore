@@ -55,3 +55,8 @@ qdrant_storage/
 plans/
 
 roo-cli-*.tar.gz*
+
+# Files
+RECORD_DEMO.md
+SUBMISSION.md
+
