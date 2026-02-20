@@ -221,6 +221,13 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 	private taskModeReady: Promise<void>
 
 	/**
+	 * Handshake state selected via select_active_intent(intent_id).
+	 * This is injected into subsequent system prompts until replaced.
+	 */
+	private activeIntentId?: string
+	private activeIntentContext?: string
+
+	/**
 	 * The API configuration name (provider profile) associated with this task.
 	 * Persisted across sessions to maintain the provider profile when reopening tasks from history.
 	 *
@@ -1630,6 +1637,23 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 		} else if (terminalOperation === "abort") {
 			this.terminalProcess?.abort()
 		}
+	}
+
+	setActiveIntentContext(intentId: string, context: string) {
+		this.activeIntentId = intentId
+		this.activeIntentContext = context
+	}
+
+	getActiveIntentId(): string | undefined {
+		return this.activeIntentId
+	}
+
+	getActiveIntentContext(): string | undefined {
+		return this.activeIntentContext
+	}
+
+	hasActiveIntentContext(): boolean {
+		return !!this.activeIntentId && !!this.activeIntentContext
 	}
 
 	private async getFilesReadByRooSafely(context: string): Promise<string[] | undefined> {
@@ -3780,7 +3804,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 
 			const modelInfo = this.api.getModel().info
 
-			return SYSTEM_PROMPT(
+			const basePrompt = await SYSTEM_PROMPT(
 				provider.context,
 				this.cwd,
 				false,
@@ -3807,6 +3831,19 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				this.api.getModel().id,
 				provider.getSkillsManager(),
 			)
+
+			if (!this.activeIntentContext) {
+				return basePrompt
+			}
+
+			return `${basePrompt}
+
+====
+
+ACTIVE INTENT CONTEXT
+
+The following context was loaded via select_active_intent(intent_id). You must comply with it for all subsequent tool calls:
+${this.activeIntentContext}`
 		})()
 	}
 
