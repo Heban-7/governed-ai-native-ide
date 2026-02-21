@@ -28,6 +28,8 @@ describe("commandClassifier", () => {
 		const classification = classifyCommand("apply_diff", { path: "src/a.ts", diff: refactorDiff })
 		expect(classification.risk).toBe("DESTRUCTIVE")
 		expect(["AST_REFACTOR", "INTENT_EVOLUTION"]).toContain(classification.mutationClass)
+		expect(["HIGH", "MEDIUM", "LOW"]).toContain(classification.mutationConfidence)
+		expect(Array.isArray(classification.mutationSignals)).toBe(true)
 		expect(classification.affectedFiles).toEqual(["src/a.ts"])
 	})
 })

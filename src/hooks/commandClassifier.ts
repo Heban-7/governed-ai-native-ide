@@ -5,6 +5,8 @@ export type CommandClassification = {
 	normalizedToolName: string
 	risk: CommandRisk
 	mutationClass: MutationClass
+	mutationConfidence: "HIGH" | "MEDIUM" | "LOW"
+	mutationSignals: string[]
 	affectedFiles: string[]
 	diffPreview?: string
 	reason: string
@@ -76,14 +78,22 @@ function structuralLineCount(lines: string[]): number {
 	return lines.filter((line) => structuralRegex.test(line)).length
 }
 
-function inferMutationClass(toolName: string, payload: AnyPayload): MutationClass {
-	// Simple AST-ish heuristic:
-	// - if a diff contains both add/remove with similar structural signatures, call it refactor
-	// - otherwise default to intent evolution for mutating operations
+type MutationInference = {
+	mutationClass: MutationClass
+	mutationConfidence: "HIGH" | "MEDIUM" | "LOW"
+	mutationSignals: string[]
+}
+
+function inferMutationClass(toolName: string, payload: AnyPayload): MutationInference {
+	// Staged heuristic:
+	// 1) Diff-shape signals (balanced add/remove, structural balance)
+	// 2) AST-ish structural keyword density
+	// 3) Intent-evolution language signals in added lines
 	const diffText =
 		typeof payload.diff === "string" ? payload.diff : typeof payload.patch === "string" ? payload.patch : undefined
 
 	if (diffText) {
+		const signals: string[] = []
 		const added = diffText
 			.split("\n")
 			.filter((line) => line.startsWith("+") && !line.startsWith("+++"))
@@ -103,19 +113,64 @@ function inferMutationClass(toolName: string, payload: AnyPayload): MutationClas
 			Math.abs(addedStructural - removedStructural) <=
 				Math.max(2, Math.ceil(Math.max(addedStructural, removedStructural) * 0.4))
 
-		if (addRemoveBalanced && structuralBalanced) {
-			return "AST_REFACTOR"
+		if (addRemoveBalanced) {
+			signals.push("balanced_diff_shape")
+		}
+		if (structuralBalanced) {
+			signals.push("balanced_structural_lines")
 		}
 
-		return "INTENT_EVOLUTION"
+		const addedLower = added.join("\n").toLowerCase()
+		const evolutionKeywords = [
+			"new feature",
+			"add endpoint",
+			"introduce",
+			"support ",
+			"migration",
+			"breaking",
+			"deprecate",
+		]
+		const hasEvolutionKeyword = evolutionKeywords.some((keyword) => addedLower.includes(keyword))
+		if (hasEvolutionKeyword) {
+			signals.push("intent_evolution_language")
+		}
+
+		if (typeof payload.patch === "string" && payload.patch.includes("*** Add File: ")) {
+			signals.push("adds_new_file")
+		}
+		if (typeof payload.patch === "string" && payload.patch.includes("*** Delete File: ")) {
+			signals.push("deletes_file")
+		}
+
+		if (addRemoveBalanced && structuralBalanced) {
+			return {
+				mutationClass: "AST_REFACTOR",
+				mutationConfidence: hasEvolutionKeyword ? "MEDIUM" : "HIGH",
+				mutationSignals: signals,
+			}
+		}
+
+		return {
+			mutationClass: "INTENT_EVOLUTION",
+			mutationConfidence: hasEvolutionKeyword ? "HIGH" : "MEDIUM",
+			mutationSignals: signals,
+		}
 	}
 
 	if (toolName === "write_to_file") {
 		// We only have final content in this tool, not a granular diff, so treat as evolution by default.
-		return "INTENT_EVOLUTION"
+		return {
+			mutationClass: "INTENT_EVOLUTION",
+			mutationConfidence: "LOW",
+			mutationSignals: ["full_write_without_diff"],
+		}
 	}
 
-	return "UNKNOWN"
+	return {
+		mutationClass: "UNKNOWN",
+		mutationConfidence: "LOW",
+		mutationSignals: [],
+	}
 }
 
 export function classifyCommand(toolName: string, payload: unknown): CommandClassification {
@@ -143,14 +198,22 @@ export function classifyCommand(toolName: string, payload: unknown): CommandClas
 		reason = "Mutating or shell-execution operation."
 	}
 
-	const mutationClass = risk === "DESTRUCTIVE" ? inferMutationClass(normalizedToolName, parsedPayload) : "UNKNOWN"
+	const inference =
+		risk === "DESTRUCTIVE"
+			? inferMutationClass(normalizedToolName, parsedPayload)
+			: { mutationClass: "UNKNOWN" as MutationClass, mutationConfidence: "LOW" as const, mutationSignals: [] }
 
 	return {
 		normalizedToolName,
 		risk,
-		mutationClass,
+		mutationClass: inference.mutationClass,
+		mutationConfidence: inference.mutationConfidence,
+		mutationSignals: inference.mutationSignals,
 		affectedFiles,
 		diffPreview,
-		reason,
+		reason:
+			inference.mutationSignals.length > 0
+				? `${reason} Signals: ${inference.mutationSignals.join(", ")}`
+				: reason,
 	}
 }

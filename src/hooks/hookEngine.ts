@@ -6,6 +6,7 @@ import { classifyCommand } from "./commandClassifier"
 import { traceAppenderPostHook } from "./postHooks/traceAppender"
 import { scopeAndLockPreHook } from "./preHooks/scopeAndLock"
 import { postprocessPostHook } from "./postHooks/postprocess"
+import { curateContextPreHook } from "./preHooks/context-curation"
 
 export type HookDecision = {
 	allow: boolean
@@ -19,6 +20,11 @@ export type HookSession = {
 	cwd?: string
 	taskId?: string
 	instanceId?: string
+	modelIdentifier?: string
+	modelVersion?: string
+	agentRole?: string
+	supervisorId?: string
+	workerId?: string
 }
 
 export type HookContext = {
@@ -42,6 +48,7 @@ export type PostHookFn = (context: PostHookContext) => Promise<void> | void
 
 const preHooks = new Map<string, PreHookFn>()
 const postHooks = new Map<string, PostHookFn>()
+const CRITICAL_PRE_HOOKS = new Set(["blockIfNoIntent", "scopeAndLockPreHook", "hitlPreHook"])
 
 let defaultHooksRegistered = false
 
@@ -109,7 +116,42 @@ export async function executeTool<TResult = unknown>(
 
 	for (const [hookName, hookFn] of preHooks.entries()) {
 		log("pre", { invocationId, hookName, toolName })
-		const decision = await hookFn(baseContext)
+		let decision: HookDecision | void
+		try {
+			decision = await hookFn(baseContext)
+		} catch (hookError) {
+			const err = hookError instanceof Error ? hookError : new Error(String(hookError))
+			log("pre_hook_error", {
+				invocationId,
+				toolName,
+				hookName,
+				error: err.message,
+			})
+			await options.handleError?.(`pre-hook:${hookName}`, err)
+			if (CRITICAL_PRE_HOOKS.has(hookName)) {
+				decision = {
+					allow: false,
+					alreadyReported: true,
+				}
+				options.pushToolResult?.(
+					JSON.stringify({
+						type: "tool_error",
+						code: "HOOK_INTERNAL_ERROR",
+						message:
+							"A critical governance hook failed before tool execution. The operation was blocked to preserve safety.",
+						meta: {
+							invocation_id: invocationId,
+							tool_name: toolName,
+							hook_name: hookName,
+							error: err.message,
+							is_critical_hook: true,
+						},
+					}),
+				)
+			} else {
+				continue
+			}
+		}
 		if (decision && decision.allow === false) {
 			allowed = false
 			blockedReason = decision.reason ?? `Blocked by pre-hook '${hookName}'.`
@@ -137,7 +179,32 @@ export async function executeTool<TResult = unknown>(
 
 	for (const [hookName, hookFn] of postHooks.entries()) {
 		log("post", { invocationId, hookName, toolName, allowed })
-		await hookFn(postContext)
+		try {
+			await hookFn(postContext)
+		} catch (hookError) {
+			const err = hookError instanceof Error ? hookError : new Error(String(hookError))
+			log("post_hook_error", {
+				invocationId,
+				toolName,
+				hookName,
+				error: err.message,
+			})
+			await options.handleError?.(`post-hook:${hookName}`, err)
+			options.pushToolResult?.(
+				JSON.stringify({
+					type: "hook_warning",
+					code: "HOOK_INTERNAL_ERROR",
+					message: "A post-hook failed, but tool execution already completed.",
+					meta: {
+						invocation_id: invocationId,
+						tool_name: toolName,
+						hook_name: hookName,
+						error: err.message,
+						is_critical_hook: false,
+					},
+				}),
+			)
+		}
 	}
 
 	log("end", { invocationId, toolName, allowed, hasError: !!error })
@@ -212,6 +279,7 @@ export function registerDefaultHooks(): void {
 	}
 
 	registerPreHook("logHook", logHook)
+	registerPreHook("curateContextPreHook", curateContextPreHook)
 	registerPreHook("blockIfNoIntent", blockIfNoIntent)
 	registerPreHook("scopeAndLockPreHook", scopeAndLockPreHook)
 	registerPreHook("hitlPreHook", hitlPreHook)

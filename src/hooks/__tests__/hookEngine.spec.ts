@@ -67,4 +67,57 @@ describe("hookEngine", () => {
 		expect(didPushResult).toBe(true)
 		expect(events).toEqual(["pre:blocker", "post"])
 	})
+
+	it("continues execution when a non-critical pre hook throws", async () => {
+		const events: string[] = []
+
+		registerPreHook("nonCritical", async () => {
+			events.push("pre:nonCritical")
+			throw new Error("synthetic non-critical failure")
+		})
+		registerPreHook("afterNonCritical", async () => {
+			events.push("pre:afterNonCritical")
+		})
+		registerPostHook("post", async () => {
+			events.push("post")
+		})
+
+		const result = await executeTool(
+			"read_file",
+			{ path: "x.ts" },
+			{
+				session: {},
+				execute: async () => {
+					events.push("execute")
+					return "ok"
+				},
+			},
+		)
+
+		expect(result.allowed).toBe(true)
+		expect(events).toEqual(["pre:nonCritical", "pre:afterNonCritical", "execute", "post"])
+	})
+
+	it("blocks execution when a critical pre hook throws", async () => {
+		let pushed: string | undefined
+
+		registerPreHook("blockIfNoIntent", async () => {
+			throw new Error("critical hook failure")
+		})
+
+		const result = await executeTool(
+			"write_to_file",
+			{ path: "x.ts", content: "x" },
+			{
+				session: {},
+				pushToolResult: (content) => {
+					pushed = String(content)
+				},
+				execute: async () => "should-not-run",
+			},
+		)
+
+		expect(result.allowed).toBe(false)
+		expect(pushed).toContain('"code":"HOOK_INTERNAL_ERROR"')
+	})
 })
