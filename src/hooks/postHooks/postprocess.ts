@@ -26,6 +26,46 @@ type FailureArtifact = {
 	next_action: "REPLAN_AND_FIX"
 }
 
+async function appendFailureLedger(cwd: string, artifact: FailureArtifact): Promise<void> {
+	const orchestrationDir = path.resolve(cwd, ".orchestration")
+	await fs.mkdir(orchestrationDir, { recursive: true })
+	const failureLedgerPath = path.join(orchestrationDir, "postprocess_failures.jsonl")
+	await fs.appendFile(
+		failureLedgerPath,
+		`${JSON.stringify({
+			...artifact,
+			unresolved: true,
+		})}\n`,
+		"utf8",
+	)
+}
+
+async function appendSharedBrainLesson(cwd: string, artifact: FailureArtifact): Promise<void> {
+	const sharedBrainPath = path.resolve(cwd, "AGENT.md")
+	const summary = artifact.checks
+		.filter((check) => check.exitCode !== 0)
+		.map((check) => `${check.command} ${check.args.join(" ")} (exit ${check.exitCode})`)
+		.join("; ")
+	const lesson =
+		`\n## Lesson ${artifact.timestamp}\n` +
+		`- Intent: ${artifact.intent_id ?? "UNKNOWN"}\n` +
+		`- Tool: ${artifact.tool_name}\n` +
+		`- Mutation: ${artifact.mutation_class}\n` +
+		`- Failed checks: ${summary || "unknown"}\n` +
+		`- Guidance: Re-plan with smaller patch scope and rerun validation before completion.\n`
+
+	try {
+		await fs.stat(sharedBrainPath)
+		await fs.appendFile(sharedBrainPath, lesson, "utf8")
+	} catch {
+		const initial =
+			"# AGENT Shared Brain\n\n" +
+			"This file stores cross-session lessons learned, guardrails, and style rules.\n" +
+			lesson
+		await fs.writeFile(sharedBrainPath, initial, "utf8")
+	}
+}
+
 function isMutatingTool(toolName: string): boolean {
 	return new Set([
 		"write_to_file",
@@ -173,5 +213,7 @@ export const postprocessPostHook: PostHookFn = async (context) => {
 		next_action: "REPLAN_AND_FIX",
 	}
 
+	await appendFailureLedger(cwd, artifact)
+	await appendSharedBrainLesson(cwd, artifact)
 	pushArtifactToSessionContext(context.session, artifact)
 }
